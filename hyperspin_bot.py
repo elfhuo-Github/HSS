@@ -21,8 +21,16 @@ async def create_status_channel():
     # Get the default guild (the guild where the command was used)
     guild = bot.guilds[0]
 
+    # Check if the category already exists, or create it
+    category_name = 'Hyperspin Status'
+    category = discord.utils.get(guild.categories, name=category_name)
+    if not category:
+        category = await guild.create_category(category_name)
+        print(f"Created category **{category_name}** with ID {category.id}")
+
     # Check if the channel already exists
-    existing_channel = discord.utils.get(guild.channels, name='HyperSpin Status')
+    channel_name = 'HyperSpin Status'
+    existing_channel = discord.utils.get(category.channels, name=channel_name)
 
     if not existing_channel:
         # Channel doesn't exist, create it
@@ -31,16 +39,25 @@ async def create_status_channel():
             guild.me: discord.PermissionOverwrite(read_messages=True)
         }
 
-        new_channel = await guild.create_text_channel('HyperSpin Status', overwrites=overwrites)
-        print(f"Created **HyperSpin Status** channel with ID {new_channel.id}")
+        new_channel = await category.create_text_channel(channel_name, overwrites=overwrites)
+        print(f"Created **{channel_name}** channel with ID {new_channel.id} in category {category.name}")
 
     else:
-        print(f"**HyperSpin Status** channel already exists with ID {existing_channel.id}")
+        print(f"**{channel_name}** channel already exists with ID {existing_channel.id} in category {category.name}")
 
 @bot.event
 async def on_ready():
     print(f'We have logged in as {bot.user.name}')
     print(f'Connected to guilds: {", ".join([guild.name for guild in bot.guilds])}')
+
+    # Get the default guild where the command was used
+    guild = bot.guilds[0]
+
+    if guild:
+        # Create channels if not exist
+        await create_status_channel()
+    else:
+        print("Error: Default guild not found.")
 
 @bot.command(name='hyperspinstatus', help='Check Hyperspin download status.')
 async def hyperspin_status(ctx):
