@@ -1,75 +1,55 @@
 import discord
-import os
-from discord.ext import commands, tasks
-from bs4 import BeautifulSoup
-import requests
-
-# Load environment variables
+from discord.ext import commands
 from dotenv import load_dotenv
+import os
+import requests
+from bs4 import BeautifulSoup
+
 load_dotenv()
 
 TOKEN = os.getenv('DISCORD_TOKEN')
-GUILD_ID = int(os.getenv('GUILD_ID'))
 
-bot = commands.Bot(command_prefix='!')
+intents = discord.Intents.default()
+intents.messages = True
+
+bot = commands.Bot(command_prefix='!', intents=intents)
+
+# Variable to track the previous Hyperspin status
+previous_status = None
+
+async def create_status_channel():
+    # Get the default guild (the guild where the command was used)
+    guild = bot.guilds[0]
+
+    # Check if the channel already exists
+    existing_channel = discord.utils.get(guild.channels, name='HyperSpin Status')
+
+    if not existing_channel:
+        # Channel doesn't exist, create it
+        overwrites = {
+            guild.default_role: discord.PermissionOverwrite(read_messages=False),
+            guild.me: discord.PermissionOverwrite(read_messages=True)
+        }
+
+        new_channel = await guild.create_text_channel('HyperSpin Status', overwrites=overwrites)
+        print(f"Created **HyperSpin Status** channel with ID {new_channel.id}")
+
+    else:
+        print(f"**HyperSpin Status** channel already exists with ID {existing_channel.id}")
 
 @bot.event
 async def on_ready():
-    print(f'{bot.user.name} has connected to Discord!')
-    check_website.start()
+    print(f'We have logged in as {bot.user.name}')
+    print(f'Connected to guilds: {", ".join([guild.name for guild in bot.guilds])}')
 
-@tasks.loop(minutes=10)  # Check every 10 minutes, adjust as needed
-async def check_website():
-    guild = bot.get_guild(GUILD_ID)
-    channel = discord.utils.get(guild.channels, name='downloads-status')  # Replace with your desired channel name
+@bot.command(name='hyperspinstatus', help='Check Hyperspin download status.')
+async def hyperspin_status(ctx):
+    await check_hyperspin_status(ctx)
 
-    url = 'https://www.hyperspin-fe.com/'  # HyperSpin homepage URL
-    response = requests.get(url)
+@bot.command(name='forcecheck', help='Force the bot to check Hyperspin status again.')
+@commands.bot_has_permissions(send_messages=True)
+async def force_check(ctx):
+    await check_hyperspin_status(ctx)
 
-    if response.status_code == 200:
-        soup = BeautifulSoup(response.text, 'html.parser')
-        message = soup.get_text()
-
-        if 'Unfortunately, we had to take download section back offline' in message:
-            status = 'Down'
-            await update_notification(status, channel)
-        else:
-            status = 'Up'
-
-        await channel.send(f'HyperSpin Downloads Page Status: {status}')
-    else:
-        await channel.send('Failed to retrieve HyperSpin Downloads Page status.')
-
-async def update_notification(status, channel):
-    if status == 'Down':
-        await channel.send('Attention! The HyperSpin Downloads Page is currently down.')
-    elif status == 'Up':
-        await channel.send('Good news! The HyperSpin Downloads Page is back up and running.')
-
-@bot.command(name='ping')
-async def ping(ctx):
-    await ctx.send('Pong!')
-
-@bot.command(name='checkstatus')
-async def check_status(ctx):
-    guild = bot.get_guild(GUILD_ID)
-    channel = discord.utils.get(guild.channels, name='downloads-status')  # Replace with your desired channel name
-
-    url = 'https://www.hyperspin-fe.com/'
-    response = requests.get(url)
-
-    if response.status_code == 200:
-        soup = BeautifulSoup(response.text, 'html.parser')
-        message = soup.get_text()
-
-        if 'Unfortunately, we had to take download section back offline' in message:
-            status = 'Down'
-            await update_notification(status, channel)
-        else:
-            status = 'Up'
-
-        await channel.send(f'Manual Check - HyperSpin Downloads Page Status: {status}')
-    else:
-        await channel.send('Failed to retrieve HyperSpin Downloads Page status for manual check.')
-
-bot.run(TOKEN)
+if __name__ == '__main__':
+    bot.run(TOKEN)
